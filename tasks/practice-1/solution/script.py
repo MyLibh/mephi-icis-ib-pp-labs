@@ -1,6 +1,4 @@
 import gdb
-import sys
-import argparse
 import re
 
 def words_in_line(words, line):
@@ -63,35 +61,33 @@ class ProgViewer:
     def func_locals(self, func_name):
         gdb.execute('b ' + func_name, to_string=True)
         gdb.execute('r', to_string=True)
-        frame = gdb.selected_frame()
-        if gdb.Frame.name(frame) == func_name:
-            disasm = gdb.execute('disassemble {}'.format(func_name), from_tty=False, to_string=True).split('\n')
-            for line in disasm:
-                if 'fstp ' in line:
-                    print('I do not wanna parse({})'.format(line.strip()))
-                elif words_in_line(ProgViewer.mov, line) and ('[' in line) and (']' in line):
-                    data = list(filter(lambda x: x != '' and x != '=>', line.strip().split(' ')))
+        disasm = gdb.execute('disassemble {}'.format(func_name), to_string=True).split('\n')
+        for line in disasm:
+            if 'fstp ' in line:
+                print('I do not wanna parse({})'.format(line.strip()))
+            elif words_in_line(ProgViewer.mov, line) and ('[' in line) and (']' in line):
+                data = list(filter(lambda x: x != '' and x != '=>', line.strip().split(' ')))
 
-                    var_type = data[2]
-                    try:
-                        stack_addr, var_value = data[4].split(',')
-                        stack_addr = stack_addr[1:len(stack_addr)-1]
-                    except:
-                        print('Cannot parse({})'.format(line.strip()))
-                        continue
+                var_type = data[2]
+                try:
+                    stack_addr, var_value = data[4].split(',')
+                    stack_addr = stack_addr[1:len(stack_addr)-1]
+                except:
+                    print('Cannot parse({})'.format(line.strip()))
+                    continue
                     
-                    c = 'b'
-                    if var_type == 'WORD':
-                        c = 'h'
-                    elif var_type == 'DWORD':
-                        c = 'w'
-                    elif var_type == 'QWORD':
-                        c = 'g'
-                    # elif var_type == 'TWORD':
-                    #     c = 't'
+                c = 'b'
+                if var_type == 'WORD':
+                    c = 'h'
+                elif var_type == 'DWORD':
+                    c = 'w'
+                elif var_type == 'QWORD':
+                    c = 'g'
+                # elif var_type == 'TWORD':
+                #     c = 't'
 
-                    var_addr, cur_val = re.sub(r'\s+', r'', gdb.execute('x/{}x ${}'.format(c, stack_addr), to_string=True)).split(':')                 
-                    self.vars[var_addr] = [var_type, var_value, cur_val]
+                var_addr, cur_val = re.sub(r'\s+', r'', gdb.execute('x/{}x ${}'.format(c, stack_addr), to_string=True)).split(':')                 
+                self.vars[var_addr] = [var_type, var_value, cur_val]
 
     def reset(self):
         self.vars.clear()
