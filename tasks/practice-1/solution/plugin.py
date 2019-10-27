@@ -1,14 +1,40 @@
 import gdb
 import re
 
-class ProgViewer:
+# https://www.sourceware.org/gdb/onlinedocs/gdb/Commands-In-Python.html
+
+class ProgViewer(gdb.Command):
     mov = ['mov', 'movss', 'movsd']
     types = ['BYTE', 'WORD', 'DWORD', 'QWORD', 'TWORD']
 
-    def __init__(self, file):
+    def __init__(self):
         self.vars = {}
 
-        gdb.execute('file ' + file, to_string=True)
+        super().__init__("locals", gdb.COMMAND_DATA)
+
+    def invoke(self, arg, from_tty):
+        if arg == 'all': 
+            return self.prog_locals()
+
+        if arg == 'help':
+            print('''Usage:\nlocals      - show locals from current frame.\nlocals all  - all locals variables.\nlocals func - all locals from func.''')
+            return 0     
+        elif len(arg) == 0 or arg == 'func':
+            try:
+                frame = gdb.selected_frame()
+            except:
+                print("Frame is invalid")
+                return -1
+
+            if len(arg) == 0:
+                self.frame_locals(frame)
+            else: 
+                self.func_locals(frame)
+
+            self.print_vars()
+            self.clear()
+        else:
+            print('Type "locals help" for usage.')
 
     def _rec_prog_locals(self, func, rec_level):
         if func == None or rec_level > 5:
@@ -16,7 +42,7 @@ class ProgViewer:
 
         gdb.execute('b ' + func, to_string=True)
         if rec_level == 0:
-            gdb.execute('r ', to_string=True)
+            gdb.execute('r', to_string=True)
         else:
             gdb.execute('c', to_string=True)
 
@@ -59,6 +85,40 @@ class ProgViewer:
     def prog_locals(self):
         self._rec_prog_locals('main', 0)
 
+    def frame_locals(self, frame):
+        disasm = gdb.execute('disassemble {}'.format(gdb.Frame.name(frame)), to_string=True).split('\n')
+        for line in disasm:
+            if '=>' in line:
+                break
+
+            operand = r'([xy]mm\d|\w+\sPTR\s[][\w+-]+|\w+)'
+            res = re.search(r'.+(' + r'|'.join(ProgViewer.mov) + r')\s+' + operand + r',' + operand, line) # TODO: movs, movsb, movsw
+            
+            if res != None:
+                components = res.groups()
+                if re.search(r'(' + r'|'.join(ProgViewer.types) + r')\sPTR\s[][\w+-]+', components[1]) == None:
+                    continue
+
+                if components[0] == 'mov':
+                     var_type = components[1].split(' ')[0]
+                     c = self.get_var_format(var_type)
+                elif components[0] == 'movss': # float
+                    var_type = 'float'
+                    c = 'f'
+                elif components[0] == 'movsd': # double
+                    var_type = 'double'
+                    c = 'f'
+                    
+                stack_addr = components[1].split(' ')[2]
+                stack_addr = stack_addr[1:len(stack_addr)-1]
+                var_value  = components[2]
+
+                var_addr, cur_val = re.sub(r'\s+', r'', gdb.execute('x/{}x ${}'.format(c, stack_addr), to_string=True)).split(':')                 
+                self.vars[var_addr] = [var_type, var_value, cur_val]
+
+            # TODO: check for fstp
+
+
     def get_var_format(self, var_type):
         if var_type == 'BYTE':
             return 'b'
@@ -69,10 +129,8 @@ class ProgViewer:
         elif var_type == 'QWORD' or var_type == 'TWORD':
             return 'g'
 
-    def func_locals(self, func_name):
-        gdb.execute('b ' + func_name, to_string=True)
-        gdb.execute('r', to_string=True)
-        disasm = gdb.execute('disassemble {}'.format(func_name), to_string=True).split('\n')
+    def func_locals(self, frame):
+        disasm = gdb.execute('disassemble {}'.format(gdb.Frame.name(frame)), to_string=True).split('\n')
         for line in disasm:
             operand = r'([xy]mm\d|\w+\sPTR\s[][\w+-]+|\w+)'
             res = re.search(r'.+(' + r'|'.join(ProgViewer.mov) + r')\s+' + operand + r',' + operand, line) # TODO: movs, movsb, movsw
@@ -118,16 +176,4 @@ class ProgViewer:
         else:
             print('No variables detected')
 
-def main():
-    file = 'test'
-    func = None
-
-    pv = ProgViewer(file)
-    if func != None:
-        pv.func_locals(func)
-        pv.print_vars()
-    else:
-        pv.prog_locals()
-
-if __name__ == "__main__":
-    main()
+ProgViewer()
