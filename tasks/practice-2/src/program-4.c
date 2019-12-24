@@ -56,7 +56,7 @@ int main()
     char key[0x20];
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stdout, NULL, _IONBF, 0);
-    for (int i = 0; i < sizeof(key); ++i) {
+    for (int i = 0; i < sizeof(key) - 1; ++i) { // fixed by adding - 1
         key[i] = a[rand() % (sizeof(a) - 1)];
     }
     show_msg();
