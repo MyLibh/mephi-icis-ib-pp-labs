@@ -24,7 +24,7 @@ unsigned int read_str(char *msg, unsigned int size) {
         nbytes += rbytes;
     }
 
-    msg[--size]='\0';
+    msg[--size] = '\0';
 }
 
 void update_name(char *name, unsigned int size)
@@ -40,21 +40,27 @@ void quit(char * name)
     exit(1);
 }
 
-int main()
-{
-    setvbuf(stdin, NULL, _IONBF, 0);
-    setvbuf(stdout, NULL, _IONBF, 0);
+char *get_name(){
     char name[0x20];
-    char cmd[0x10];
     printf("Input your name --> ");
     read_str(name, sizeof(name));
+}
+
+int main()
+{
+    char surname[0x10];
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
+    char *name;
+    char cmd[0x10];
+    name = get_name();
     printf("Hi %s, nice to meet you!!!\n", name);
     while(1){
         printf("What do you want to do??\n");
         printf("--> ");
         read_str(cmd, sizeof(cmd));
         if (!(strcmp(cmd, "u"))){
-            update_name(name, sizeof(name));
+            name = get_name();
         } else if (!(strcmp(cmd, "q"))){
             quit(name);
         } else {
